@@ -1,26 +1,153 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/V7fOtAk7)
-|    NRP     |      Name      |
-| :--------: | :------------: |
-| 5025221000 | Student 1 Name |
-| 5025221000 | Student 2 Name |
-| 5025221000 | Student 3 Name |
+# FUSecure - FUSE-based Secure Filesystem
 
-# Praktikum Modul 4 _(Module 4 Lab Work)_
+## 📘 Description
 
-</div>
+FUSecure is a custom file system built using [FUSE](https://github.com/libfuse/libfuse) (Filesystem in Userspace). It is designed to simulate a secure academic environment where users can:
 
-### Daftar Soal _(Task List)_
+* **Share public course materials**
+* **Keep private practicum answers safe from unauthorized access**
+* **Prevent file tampering or deletion by enforcing read-only rules**
 
-- [Task 1 - FUSecure](/task-1/)
+This is useful in scenarios where multiple users share a system but require access control on specific folders.
 
-- [Task 2 - LawakFS++](/task-2/)
+---
 
-- [Task 3 - Drama Troll](/task-3/)
+## 🏗️ System Structure
 
-- [Task 4 - LilHabOS](/task-4/)
+### 🔧 Source Directory Layout
 
-### Laporan Resmi Praktikum Modul 4 _(Module 4 Lab Work Report)_
+The base directory contains:
 
-Tulis laporan resmi di sini!
+```
+/home/shared_files/
+├── public/
+├── private_yuadi/
+└── private_irwandi/
+```
 
-_Write your lab work report here!_
+* `public/`: accessible to all users
+* `private_yuadi/`: accessible **only** by user `yuadi`
+* `private_irwandi/`: accessible **only** by user `irwandi`
+
+### 👥 Users Involved
+
+* `yuadi` — user who wants to protect his practicum answers
+* `irwandi` — user who can access public materials and his own private folder
+
+---
+
+## 🔒 Access Rules Implemented
+
+| Folder            | Accessible by  | Permissions |
+| ----------------- | -------------- | ----------- |
+| public/           | All users      | Read-only   |
+| private\_yuadi/   | Only `yuadi`   | Read-only   |
+| private\_irwandi/ | Only `irwandi` | Read-only   |
+| Entire filesystem | Everyone       | Read-only   |
+
+No user, not even root, can create, write, rename, or delete any files or folders in the mount point.
+
+---
+
+## 🧠 How It Works
+
+FUSecure overrides selected FUSE operations:
+
+* `getattr`, `readdir`, `open`, `read`: allow read access
+* `write`, `mkdir`, `rmdir`, `create`, `unlink`, `rename`: all return `EROFS` (read-only error)
+
+User ID is checked via:
+
+```c
+uid_t uid = fuse_get_context()->uid;
+```
+
+Private folder access is restricted by comparing the user UID to the directory name prefix.
+
+---
+
+## ⚙️ Setup Instructions
+
+### 1. 🔧 Install Dependencies
+
+```bash
+sudo apt install libfuse3-dev build-essential
+```
+
+### 2. 👥 Create Users & Directories
+
+```bash
+sudo useradd -m yuadi
+sudo useradd -m irwandi
+sudo passwd yuadi
+sudo passwd irwandi
+
+sudo mkdir -p /home/shared_files/public /home/shared_files/private_yuadi /home/shared_files/private_irwandi
+sudo chown -R root:root /home/shared_files
+```
+
+### 3. 🧾 Build the Program
+
+```bash
+gcc fusecure.c -o fusecure `pkg-config fuse3 --cflags --libs`
+```
+
+### 4. 📂 Mount the Filesystem
+
+Run as the target user:
+
+```bash
+su - yuadi
+./fusecure /mnt/secure_fs -f -o allow_other
+```
+
+Ensure `/mnt/secure_fs` exists and is owned by `yuadi`.
+
+---
+
+## 🧪 Execution Examples
+
+### ✅ Access from `yuadi`
+
+```bash
+cat /mnt/secure_fs/public/materi.txt            # Success
+cat /mnt/secure_fs/private_yuadi/answer.c       # Success
+cat /mnt/secure_fs/private_irwandi/tugas.c      # Permission Denied
+rm /mnt/secure_fs/public/materi.txt             # Permission Denied
+```
+
+### ✅ Access from `irwandi`
+
+```bash
+cat /mnt/secure_fs/public/materi.txt            # Success
+cat /mnt/secure_fs/private_irwandi/tugas.c      # Success
+cat /mnt/secure_fs/private_yuadi/answer.c       # Permission Denied
+mkdir /mnt/secure_fs/testfolder                 # Permission Denied
+```
+
+---
+
+## 📁 File List
+
+* `fusecure.c` : Main C source code
+* `README.md` : This documentation
+
+---
+
+## 📌 Notes
+
+* Always run the FUSE program as the intended user (`yuadi` or `irwandi`)
+* Mount point must be owned by the user running `fusecure`
+* Do not use `su` alone for debugging — FUSE checks actual UID, not shell user
+
+---
+
+## 📜 License
+
+This is a student project for Operating Systems coursework.
+
+---
+
+## ✍️ Author
+
+Mel Lo — with characters `yuadi` and `irwandi` as part of the scenario.
